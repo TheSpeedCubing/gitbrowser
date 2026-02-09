@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Markdown Repo Browser</title>
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.5.0/github-markdown-dark.min.css">
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+            background-color: #0d1117;
+            /* GitHub Dark Dim */
+            color: #c9d1d9;
+            overflow: hidden;
+            /* Prevent body scroll during resize */
+        }
+
+        #sidebar {
+            width: 300px;
+            min-width: 150px;
+            max-width: 50%;
+            border-right: 1px solid #30363d;
+            overflow: auto;
+            padding: 10px;
+            background-color: #010409;
+            /* Darker sidebar */
+            font-size: 14px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Splitter styles */
+        #splitter {
+            width: 5px;
+            background-color: #30363d;
+            cursor: col-resize;
+            transition: background-color 0.2s;
+            flex-shrink: 0;
+        }
+
+        #splitter:hover,
+        #splitter:active {
+            background-color: #58a6ff;
+            /* GitHub blue for active state */
+        }
+
+        #content {
+            flex: 1;
+            padding: 32px;
+            overflow: auto;
+            background-color: #0d1117;
+            min-width: 200px;
+        }
+
+        .tree-item {
+            cursor: pointer;
+            padding: 4px 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            border-radius: 6px;
+            line-height: 1.5;
+            color: #c9d1d9;
+        }
+
+        .tree-indent {
+            margin-left: 16px;
+            border-left: 1px solid #30363d;
+        }
+
+        .tree-item:hover {
+            background-color: #21262d;
+        }
+
+        .folder {
+            font-weight: 600;
+            color: #8b949e;
+        }
+
+        .folder::after {
+            content: "";
+        }
+
+        /* Markdown rendering area */
+        .markdown-body {
+            box-sizing: border-box;
+            min-width: 200px;
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 45px;
+            background-color: #0d1117;
+        }
+
+        @media (max-width: 767px) {
+            .markdown-body {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="sidebar">Loading tree...</div>
+    <div id="splitter"></div>
+    <div id="content">
+        <div id="markdown-content" class="markdown-body">Select a file to view.</div>
+    </div>
+
+    <script>
+        const owner = "{{ owner }}";
+        const repo = "{{ repo }}";
+        const branch = "{{ branch if branch else '' }}"; // Empty if None
+        const params = new URLSearchParams(window.location.search);
+        const showAll = params.get('mdonly') === '0';
+        const expandAll = params.get('expand') === '1';
+
+        // Splitter logic
+        const sidebar = document.getElementById('sidebar');
+        const splitter = document.getElementById('splitter');
+        let isResizing = false;
+
+        splitter.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.body.style.cursor = 'col-resize';
+            splitter.style.backgroundColor = '#58a6ff';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const newWidth = e.clientX;
+            if (newWidth > 150 && newWidth < window.innerWidth * 0.5) {
+                sidebar.style.width = `${newWidth}px`;
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = 'default';
+                splitter.style.backgroundColor = '#30363d';
+            }
+        });
+
+        let fullTree = [];
+
+        async function init() {
+            try {
+                let url = `/api/tree/${owner}/${repo}`;
+                if (branch) url += `?branch=${branch}`;
+
+                const res = await fetch(url);
+                if (!res.ok) throw new Error("Failed to fetch tree");
+                fullTree = await res.json();
+                renderTree();
+            } catch (e) {
+                document.getElementById('sidebar').innerText = "Error: " + e.message;
+            }
+        }
+
+        // Helper to check if a path (folder) contains visible files
+        function hasVisibleContent(folderPath) {
+            const prefix = folderPath + "/";
+            for (const item of fullTree) {
+                if (item.path.startsWith(prefix) && item.path.endsWith(".md")) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function renderTree() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.innerHTML = "";
+
+            // Build tree from filtered list
+            const filteredItems = fullTree.filter(item => {
+                if (showAll) return true;
+                if (item.type === 'blob' && !item.path.endsWith('.md')) return false;
+                return true;
+            });
+
+            // Build tree object
+            const treeRoot = {};
+
+            filteredItems.forEach(item => {
+                if (item.type === 'blob') {
+                    const parts = item.path.split('/');
+                    let current = treeRoot;
+                    parts.forEach((part, index) => {
+                        if (!current[part]) current[part] = { _children: {} };
+
+                        if (index === parts.length - 1) {
+                            current[part]._type = 'blob';
+                            current[part]._path = item.path;
+                        }
+                        current = current[part]._children;
+                    });
+                }
+            });
+
+            // Render
+            function buildDom(node, container) {
+                const keys = Object.keys(node).sort((a, b) => {
+                    const typeA = node[a]._type || 'tree';
+                    const typeB = node[b]._type || 'tree';
+                    if (typeA !== typeB) return typeA === 'tree' ? -1 : 1;
+                    // ASCII sort
+                    return a < b ? -1 : (a > b ? 1 : 0);
+                });
+
+                for (const key of keys) {
+                    const data = node[key];
+                    const isFile = data._type === 'blob';
+
+                    const div = document.createElement('div');
+                    div.textContent = key;
+                    div.className = "tree-item";
+                    if (!isFile) div.classList.add("folder");
+
+                    container.appendChild(div);
+
+                    if (isFile) {
+                        div.addEventListener('click', () => loadMarkdown(data._path));
+                    } else {
+                        div.addEventListener('click', (e) => {
+                            const sub = div.nextElementSibling;
+                            if (sub.style.display === 'none') {
+                                sub.style.display = 'block';
+                            } else {
+                                sub.style.display = 'none';
+                            }
+                        });
+
+                        const sub = document.createElement('div');
+                        sub.className = "tree-indent";
+                        if (!expandAll) sub.style.display = 'none';
+                        container.appendChild(sub);
+                        buildDom(data._children, sub);
+                    }
+                }
+            }
+
+            buildDom(treeRoot, sidebar);
+
+            if (sidebar.innerHTML === "") {
+                sidebar.innerHTML = "No files found.";
+            }
+        }
+
+        async function loadMarkdown(path) {
+            document.getElementById("markdown-content").innerHTML = "Loading...";
+            try {
+                let url = `/api/render/${owner}/${repo}?path=${encodeURIComponent(path)}`;
+                if (branch) url += `&branch=${branch}`;
+
+                const html = await fetch(url).then(r => r.text());
+                document.getElementById("markdown-content").innerHTML = html;
+            } catch (e) {
+                document.getElementById("markdown-content").innerHTML = "Error: " + e.message;
+            }
+        }
+
+        init();
+    </script>
+</body>
+
+</html>

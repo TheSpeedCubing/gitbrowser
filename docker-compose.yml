@@ -1,0 +1,5 @@
+services:
+  gitbrowser:
+    image: ghcr.io/thespeedcubing/gitbrowser
+    ports:
+      - "5011:5011"
