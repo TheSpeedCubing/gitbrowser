@@ -92,6 +92,3 @@ def render_markdown(owner, repo):
             return f"<pre>{content}</pre>"
     except Exception as e:
         return f"Error rendering: {e}", 500
-
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
