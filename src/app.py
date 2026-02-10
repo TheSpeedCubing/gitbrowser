@@ -12,6 +12,10 @@ else:
 
 app = Flask(__name__)
 
+@app.errorhandler(404)
+def page_not_found(e):
+    return render_template('error.html'), 404
+
 TREE_CACHE = {}
 
 def get_headers():
@@ -44,6 +48,10 @@ def fetch_git_tree(owner, repo, branch):
         print(f"Error fetching tree: {e}")
         return []
 
+@app.route('/')
+def home():
+    return render_template('index.html', owner="TheSpeedCubing", repo="gitbrowser", branch="main")
+
 @app.route('/<owner>/<repo>')
 @app.route('/<owner>/<repo>/tree/<branch>')
 def index(owner, repo, branch=None):
@@ -57,17 +65,14 @@ def get_tree(owner, repo):
         
     cache_key = f"{owner}/{repo}/{branch}"
     
-    # Prune expired entries from the entire cache to save memory
     now = time.time()
     expired_keys = [k for k, v in TREE_CACHE.items() if now - v["timestamp"] > 30]
     for k in expired_keys:
         del TREE_CACHE[k]
     
-    # Check if requested entry still exists (and is fresh)
     if cache_key in TREE_CACHE:
         return jsonify(TREE_CACHE[cache_key]["tree"])
     
-    # Fetch fresh data
     tree_data = fetch_git_tree(owner, repo, branch)
     TREE_CACHE[cache_key] = {
         "branch": branch, 

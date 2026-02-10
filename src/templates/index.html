@@ -107,12 +107,11 @@
     <script>
         const owner = "{{ owner }}";
         const repo = "{{ repo }}";
-        const branch = "{{ branch if branch else '' }}"; // Empty if None
+        const branch = "{{ branch if branch else '' }}";
         const params = new URLSearchParams(window.location.search);
         const showAll = params.get('mdonly') === '0';
         const expandAll = params.get('expand') === '1';
 
-        // Splitter logic
         const sidebar = document.getElementById('sidebar');
         const splitter = document.getElementById('splitter');
         let isResizing = false;
@@ -151,7 +150,7 @@
                 fullTree = await res.json();
                 renderTree();
 
-                // Auto-load root README
+                // auto load readme.md
                 const readme = fullTree.find(item =>
                     item.type === 'blob' &&
                     item.path.toLowerCase() === 'readme.md' &&
@@ -163,29 +162,16 @@
             }
         }
 
-        // Helper to check if a path (folder) contains visible files
-        function hasVisibleContent(folderPath) {
-            const prefix = folderPath + "/";
-            for (const item of fullTree) {
-                if (item.path.startsWith(prefix) && item.path.endsWith(".md")) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
         function renderTree() {
             const sidebar = document.getElementById('sidebar');
             sidebar.innerHTML = "";
 
-            // Build tree from filtered list
             const filteredItems = fullTree.filter(item => {
                 if (showAll) return true;
                 if (item.type === 'blob' && !item.path.endsWith('.md')) return false;
                 return true;
             });
 
-            // Build tree object
             const treeRoot = {};
 
             filteredItems.forEach(item => {
@@ -204,13 +190,11 @@
                 }
             });
 
-            // Render
             function buildDom(node, container) {
                 const keys = Object.keys(node).sort((a, b) => {
                     const typeA = node[a]._type || 'tree';
                     const typeB = node[b]._type || 'tree';
                     if (typeA !== typeB) return typeA === 'tree' ? -1 : 1;
-                    // ASCII sort
                     return a < b ? -1 : (a > b ? 1 : 0);
                 });
 
