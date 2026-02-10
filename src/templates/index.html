@@ -79,10 +79,6 @@
             color: #8b949e;
         }
 
-        .folder::after {
-            content: "";
-        }
-
         /* Markdown rendering area */
         .markdown-body {
             box-sizing: border-box;
@@ -215,7 +211,7 @@
                     const isFile = data._type === 'blob';
 
                     const div = document.createElement('div');
-                    div.textContent = key;
+                    div.textContent = isFile ? key : key + "/";
                     div.className = "tree-item";
                     if (!isFile) div.classList.add("folder");
 
