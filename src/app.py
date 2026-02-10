@@ -1,7 +1,7 @@
 import os
 import requests
 import time
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, url_for, abort
 import cmarkgfm
 
 app = Flask(__name__)
@@ -24,11 +24,13 @@ def get_default_branch(owner, repo):
     url = f"https://api.github.com/repos/{owner}/{repo}"
     try:
         r = requests.get(url, headers=get_headers())
+        if r.status_code == 404:
+            return None
         r.raise_for_status()
         return r.json().get("default_branch", "main")
     except Exception as e:
-        print(f"Error fetching default branch: {e}")
-        return "main"
+        app.logger.error(f"Error fetching default branch: {e}")
+        return None
 
 def fetch_git_tree(owner, repo, branch):
     url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
@@ -45,16 +47,18 @@ def home():
     return render_template('index.html', owner="TheSpeedCubing", repo="gitbrowser", branch="main")
 
 @app.route('/<owner>/<repo>')
+def repo_root(owner, repo):
+    branch = get_default_branch(owner, repo)
+    if not branch:
+        abort(404)
+    return redirect(url_for('index', owner=owner, repo=repo, branch=branch))
+
 @app.route('/<owner>/<repo>/tree/<branch>')
-def index(owner, repo, branch=None):
+def index(owner, repo, branch):
     return render_template('index.html', owner=owner, repo=repo, branch=branch)
 
-@app.route('/api/tree/<owner>/<repo>')
-def get_tree(owner, repo):
-    branch = request.args.get('branch')
-    if not branch:
-        branch = get_default_branch(owner, repo)
-        
+@app.route('/api/tree/<owner>/<repo>/tree/<branch>')
+def get_tree(owner, repo, branch):    
     cache_key = f"{owner}/{repo}/{branch}"
     
     now = time.time()
@@ -74,17 +78,12 @@ def get_tree(owner, repo):
     
     return jsonify(tree_data)
 
-@app.route('/api/render/<owner>/<repo>')
-def render_markdown(owner, repo):
+@app.route('/api/render/<owner>/<repo>/tree/<branch>')
+def render_markdown(owner, repo, branch):
     path = request.args.get('path', '')
-    branch = request.args.get('branch')
     
     if not path:
         return "Missing path", 400
-        
-    if not branch:
-        cache_key_default = f"{owner}/{repo}" 
-        branch = get_default_branch(owner, repo)
 
     raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}"
     

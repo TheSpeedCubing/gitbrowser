@@ -142,8 +142,7 @@
 
         async function init() {
             try {
-                let url = `/api/tree/${owner}/${repo}`;
-                if (branch) url += `?branch=${branch}`;
+                const url = `/api/tree/${owner}/${repo}/tree/${branch}`;
 
                 const res = await fetch(url);
                 if (!res.ok) throw new Error("Failed to fetch tree");
@@ -240,8 +239,7 @@
         async function loadMarkdown(path) {
             document.getElementById("markdown-content").innerHTML = "Loading...";
             try {
-                let url = `/api/render/${owner}/${repo}?path=${encodeURIComponent(path)}`;
-                if (branch) url += `&branch=${branch}`;
+                const url = `/api/render/${owner}/${repo}/tree/${branch}?path=${encodeURIComponent(path)}`;
 
                 const html = await fetch(url).then(r => r.text());
                 document.getElementById("markdown-content").innerHTML = html;
