@@ -150,6 +150,14 @@
                 if (!res.ok) throw new Error("Failed to fetch tree");
                 fullTree = await res.json();
                 renderTree();
+
+                // Auto-load root README
+                const readme = fullTree.find(item =>
+                    item.type === 'blob' &&
+                    item.path.toLowerCase() === 'readme.md' &&
+                    !item.path.includes('/')
+                );
+                if (readme) loadMarkdown(readme.path);
             } catch (e) {
                 document.getElementById('sidebar').innerText = "Error: " + e.message;
             }
