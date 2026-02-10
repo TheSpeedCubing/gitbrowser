@@ -4,13 +4,9 @@ import time
 from flask import Flask, render_template, request, jsonify
 import cmarkgfm
 
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
-if GITHUB_TOKEN:
-    print("github token found.")
-else:
-    print("github token not specified.")
-
 app = Flask(__name__)
+
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 
 @app.errorhandler(404)
 def page_not_found(e):
@@ -36,16 +32,12 @@ def get_default_branch(owner, repo):
 
 def fetch_git_tree(owner, repo, branch):
     url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
-    print(f"Fetching tree from: {url}")
     try:
         r = requests.get(url)
-        print(f"Tree response: {r.status_code}")
-        if r.status_code != 200:
-            print(f"Response: {r.text}")
         r.raise_for_status()
         return r.json().get("tree", [])
     except Exception as e:
-        print(f"Error fetching tree: {e}")
+        app.logger.error(f"Error fetching tree: {e}")
         return []
 
 @app.route('/')
