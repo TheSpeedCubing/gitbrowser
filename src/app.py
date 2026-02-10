@@ -4,14 +4,26 @@ import time
 from flask import Flask, render_template, request, jsonify
 import cmarkgfm
 
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+if GITHUB_TOKEN:
+    print("github token found.")
+else:
+    print("github token not specified.")
+
 app = Flask(__name__)
 
 TREE_CACHE = {}
 
+def get_headers():
+    headers = {}
+    if GITHUB_TOKEN:
+        headers["Authorization"] = f"token {GITHUB_TOKEN}"
+    return headers
+
 def get_default_branch(owner, repo):
     url = f"https://api.github.com/repos/{owner}/{repo}"
     try:
-        r = requests.get(url)
+        r = requests.get(url, headers=get_headers())
         r.raise_for_status()
         return r.json().get("default_branch", "main")
     except Exception as e:
