@@ -6,6 +6,12 @@ import cmarkgfm
 
 app = Flask(__name__)
 
+if __name__ != "__main__":
+    import logging
+    gunicorn_logger = logging.getLogger("gunicorn.error")
+    app.logger.handlers = gunicorn_logger.handlers
+    app.logger.setLevel(gunicorn_logger.level)
+
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 
 @app.errorhandler(404)
@@ -35,12 +41,14 @@ def get_default_branch(owner, repo):
 def fetch_git_tree(owner, repo, branch):
     url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
     try:
-        r = requests.get(url)
+        r = requests.get(url, headers=get_headers())
+        if r.status_code == 404:
+            return None
         r.raise_for_status()
         return r.json().get("tree", [])
     except Exception as e:
         app.logger.error(f"Error fetching tree: {e}")
-        return []
+        return None
 
 @app.route('/')
 def home():
@@ -55,6 +63,8 @@ def repo_root(owner, repo):
 
 @app.route('/<owner>/<repo>/tree/<branch>')
 def index(owner, repo, branch):
+    if fetch_git_tree(owner, repo, branch) is None:
+        abort(404)
     return render_template('index.html', owner=owner, repo=repo, branch=branch)
 
 @app.route('/api/tree/<owner>/<repo>/tree/<branch>')
@@ -70,6 +80,9 @@ def get_tree(owner, repo, branch):
         return jsonify(TREE_CACHE[cache_key]["tree"])
     
     tree_data = fetch_git_tree(owner, repo, branch)
+    if tree_data is None:
+        abort(404)
+        
     TREE_CACHE[cache_key] = {
         "branch": branch, 
         "tree": tree_data,
