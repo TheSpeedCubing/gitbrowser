@@ -5,6 +5,8 @@ from flask import Flask, render_template, request, jsonify, redirect, url_for, a
 import cmarkgfm
 
 app = Flask(__name__)
+app.url_map.strict_slashes = False
+
 
 if __name__ != "__main__":
     import logging
@@ -59,7 +61,7 @@ def repo_root(owner, repo):
     branch = get_default_branch(owner, repo)
     if not branch:
         abort(404)
-    return redirect(url_for('index', owner=owner, repo=repo, branch=branch))
+    return render_template('index.html', owner=owner, repo=repo, branch=branch)
 
 @app.route('/<owner>/<repo>/tree/<branch>')
 def index(owner, repo, branch):
